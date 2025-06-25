@@ -1,0 +1,98 @@
+---
+title: "PREDICTING MACHINE LEARNING PROJECT"
+author: "Sadza Raisya Salsabila"
+date: "6/24/2025"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+This project aims to forecast the "classe" variable in the training dataset. A Random Forest model will be developed, incorporating cross-validation for robustness. The model's performance will be assessed based on out-of-sample error, and it will subsequently be applied to predict outcomes for 20 distinct test cases.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(caret)
+set.seed(42)
+```
+
+# Loading the Data
+
+```{r}
+train_csv <- read.csv("pml-training.csv")
+test_csv <- read.csv("pml-testing.csv")
+```
+
+# Cleaning the Data
+
+Columns exhibiting near-zero variability, predominantly containing NA values or irrelevant metadata, will be removed to refine the dataset.
+
+```{r}
+nzv<-nearZeroVar(train_csv)
+
+clean_train <- train_csv %>%
+    select(-nzv)%>% #drop near zero variance columns
+    select(-c(1:5))%>% #irrelevant metadata
+    select_if(colMeans(is.na(.)) < .9)
+    
+clean_test <- test_csv%>%
+    select(colnames(select(clean_train, -"classe")),"problem_id")
+
+table(clean_train$classe)
+```
+
+# Model development:
+
+## Data partition
+
+The training set will be divided into a validation subset and a smaller training subset. The original testing set ("clean_test") will remain untouched and reserved for final evaluation.
+
+```{r}
+partition <- createDataPartition(clean_train$classe, p=0.70, list=FALSE)
+train_data <- clean_train[partition, ]
+test_data <- clean_train[-partition, ]
+```
+
+## Creating and Testing the Models
+
+A Random Forest algorithm with 5-fold cross-validation will be implemented. This choice is justified by the algorithm's resilience to outliers and its ability to handle correlated predictor variables effectively.
+
+```{r}
+controlRf <- trainControl(method="cv", 5)
+modelRf <- train(classe ~ ., data=train_data, method="rf", trControl=controlRf, ntree=250)
+modelRf
+
+predictRf <- predict(modelRf, test_data)
+```
+
+The confusion matrix will be used to visually evaluate the model's predictive accuracy and classify its performance across different outcome categories.
+
+```{r}
+confusionMatrix(as.factor(test_data$classe), predictRf)
+```
+
+### Results (Accuracy & Out of Sample Error)
+
+The model's reliability will be determined by analyzing its accuracy metrics, ensuring the predictions are both precise and consistent.
+
+```{r}
+accuracy <- as.numeric(confusionMatrix(as.factor(test_data$classe), predictRf)$overall[1])
+accuracy
+```
+
+So, the estimated accuracy of the model is 99.75% and the estimated out-of-sample error is 0.25%.
+
+## Predicting for Clean Test Data Set
+
+After thorough development and validation, the model will be deployed on the original test dataset sourced from the provided repository to generate the required predictions
+
+```{r}
+result_test <- predict(modelRf, clean_test)
+result_test
+```
